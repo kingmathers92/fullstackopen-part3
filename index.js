@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require("cors");
 const bodyParser = require("body-parser");
 const morgan = require("morgan");
 const app = express();
@@ -6,6 +7,7 @@ const app = express();
 app.use(express.json());
 
 app.use(bodyParser.json());
+app.use(cors());
 
 morgan.token("postData", (req, res) => {
   if (req.method === "POST") {
