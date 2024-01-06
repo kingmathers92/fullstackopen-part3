@@ -3,6 +3,7 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const morgan = require("morgan");
 const app = express();
+const Person = require("./modules/person");
 
 app.use(express.json());
 
@@ -55,7 +56,8 @@ app.get("/", (request, response) => {
   response.send("Hello JS");
 });
 
-app.get("/api/persons", (request, response) => {
+app.get("/api/persons", async (request, response) => {
+  const persons = await Person.getAllPersons();
   response.json(persons);
 });
 
@@ -83,32 +85,24 @@ app.get("/api/persons/:id", (request, response) => {
   }
 });
 
-app.post("/api/persons", (request, response) => {
-  const body = request.body;
+app.post("/api/persons", async (request, response) => {
+  const { name, number } = request.body;
 
-  if (!body.name || !body.number) {
+  if (!name || !number) {
     return response.status(400).json({
       error: "Name or number is missing",
     });
   }
 
-  const nameExists = persons.some((person) => person.name === body.name);
+  await Person.addPerson(name, number);
+  response.json({ name, number });
 
-  if (nameExists) {
-    return response.status(400).json({
-      error: "Name must be unique",
-    });
+  try {
+    const addedPerson = await Person.addPerson(name, number);
+    response.json(addedPerson);
+  } catch (error) {
+    response.status(500).json({ error: "Internal Server Error" });
   }
-
-  const person = {
-    name: body.name,
-    number: body.number,
-    id: generateId(),
-  };
-
-  persons = persons.concat(person);
-
-  response.json(person);
 });
 
 app.delete("/api/persons/:id", (request, response) => {
