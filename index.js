@@ -8,6 +8,7 @@ app.use(express.json());
 
 app.use(bodyParser.json());
 app.use(cors());
+app.use(express.static("dist"));
 
 morgan.token("postData", (req, res) => {
   if (req.method === "POST") {
