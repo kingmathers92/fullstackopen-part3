@@ -7,10 +7,12 @@ const phonebookSchema = new mongoose.Schema({
 
 const Person = mongoose.model("Person", phonebookSchema);
 
+//get Persons from db
 const getAllPersons = () => {
   return Person.find({});
 };
 
+// save Person to db
 const addPerson = (name, number) => {
   const person = new Person({
     name,
