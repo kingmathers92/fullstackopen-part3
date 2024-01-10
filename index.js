@@ -24,28 +24,28 @@ app.use(
   )
 );
 
-let persons = [
-  {
-    id: 1,
-    name: "Arto Hellas",
-    number: "040-123456",
-  },
-  {
-    id: 2,
-    name: "Ada Lovelace",
-    number: "39-44-5323523",
-  },
-  {
-    id: 3,
-    name: "Dan Abramov",
-    number: "12-43-234345",
-  },
-  {
-    id: 4,
-    name: "Mary Poppendieck",
-    number: "39-23-6423122",
-  },
-];
+// let persons = [
+//   {
+//     id: 1,
+//     name: "Arto Hellas",
+//     number: "040-123456",
+//   },
+//   {
+//     id: 2,
+//     name: "Ada Lovelace",
+//     number: "39-44-5323523",
+//   },
+//   {
+//     id: 3,
+//     name: "Dan Abramov",
+//     number: "12-43-234345",
+//   },
+//   {
+//     id: 4,
+//     name: "Mary Poppendieck",
+//     number: "39-23-6423122",
+//   },
+// ];
 
 const generateId = () => {
   const maxId = persons.length > 0 ? Math.max(...persons.map((n) => n.id)) : 0;
@@ -57,8 +57,12 @@ app.get("/", (request, response) => {
 });
 
 app.get("/api/persons", async (request, response) => {
-  const persons = await Person.getAllPersons();
-  response.json(persons);
+  try {
+    const persons = await Person.getAllPersons();
+    response.json(persons);
+  } catch (error) {
+    response.status(500).json({ error: "Iternal Server Error" });
+  }
 });
 
 app.get("/api/info", (request, response) => {
@@ -72,20 +76,23 @@ app.get("/api/info", (request, response) => {
   response.send(info);
 });
 
-app.get("/api/persons/:id", (request, response) => {
-  const id = Number(request.params.id);
-  console.log(id);
-  const person = persons.find((person) => person.id === id);
-  console.log(person);
+app.get("/api/persons/:id", async (request, response, next) => {
+  const id = request.params.id;
 
-  if (person) {
-    response.json(person);
-  } else {
-    response.status(404).end();
+  try {
+    const person = await Person.findById(id);
+
+    if (person) {
+      response.json(person);
+    } else {
+      response.status(404).end();
+    }
+  } catch (error) {
+    next(error);
   }
 });
 
-app.post("/api/persons", async (request, response) => {
+app.post("/api/persons", async (request, response, next) => {
   const { name, number } = request.body;
 
   if (!name || !number) {
@@ -94,23 +101,42 @@ app.post("/api/persons", async (request, response) => {
     });
   }
 
-  await Person.addPerson(name, number);
-  response.json({ name, number });
-
   try {
-    const addedPerson = await Person.addPerson(name, number);
-    response.json(addedPerson);
+    const existingPerson = await Person.findOne({ name });
+
+    if (existingPerson) {
+      existingPerson.number = number;
+      await existingPerson.save();
+      response.json(existingPerson);
+    } else {
+      const addedPerson = await Person.addPerson(name, number);
+      response.json(addedPerson);
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+app.delete("/api/persons/:id", (request, response) => {
+  const id = Number(request.params.id);
+  console.log(id);
+  try {
+    await Person.findByIdAndRemove(id)
+    response.status(204).end();
   } catch (error) {
     response.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-app.delete("/api/persons/:id", (request, response) => {
-  const id = Number(request.params.id);
-  console.log(id);
-  persons = persons.filter((person) => person.id !== id);
+app.use((error, request, response, next) => {
+  console.error(error.message)
 
-  response.status(204).end();
+  if (error.name === "CastError") {
+    return response.status(400).send({ error: "Malformatted id" })
+  }
+
+  next(error);
 });
 
 const PORT = process.env.PORT || 3001;
