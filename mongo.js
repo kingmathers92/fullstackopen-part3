@@ -6,6 +6,9 @@ if (process.argv.length < 4) {
 }
 
 const url = process.env.MONGODB_URI;
+const password = process.argv[2];
+const name = process.argv[3];
+const number = process.argv[4];
 
 mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true });
 
@@ -29,7 +32,7 @@ if (name && number) {
 } else {
   try {
     Person.find({}).then((persons) => {
-      console.log(persons);
+      console.log("phonebook:");
       persons.forEach((person) => {
         console.log(`${person.name} ${person.number}`);
       });

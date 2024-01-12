@@ -1,9 +1,12 @@
+/* eslint-disable no-undef */
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const morgan = require("morgan");
 const app = express();
-const Person = require("./modules/person");
+const Person = require("./models/person");
 
 app.use(express.json());
 
@@ -47,21 +50,18 @@ app.use(
 //   },
 // ];
 
-const generateId = () => {
-  const maxId = persons.length > 0 ? Math.max(...persons.map((n) => n.id)) : 0;
-  return maxId + 1;
-};
-
-app.get("/", (request, response) => {
-  response.send("Hello JS");
-});
+// const generateId = () => {
+//   const maxId = persons.length > 0 ? Math.max(...persons.map((n) => n.id)) : 0;
+//   return maxId + 1;
+// };
 
 app.get("/api/persons", async (request, response) => {
   try {
-    const persons = await Person.getAllPersons();
+    const persons = await Person.find({});
     response.json(persons);
   } catch (error) {
-    response.status(500).json({ error: "Iternal Server Error" });
+    console.error("Error fetching persons from MongoDB:", error.message);
+    response.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -76,68 +76,78 @@ app.get("/api/info", (request, response) => {
   response.send(info);
 });
 
-app.get("/api/persons/:id", async (request, response, next) => {
+app.get("/api/persons/:id", (request, response) => {
+  const id = Number(request.params.id);
+  console.log(id);
+  const person = persons.find((person) => person.id === id);
+  console.log(person);
+
+  if (person) {
+    response.json(person);
+  } else {
+    response.status(404).end();
+  }
+});
+
+app.post("/api/persons", (request, response, next) => {
+  const body = request.body;
+
+  if (!body.name || !body.number) {
+    return response.status(400).json({
+      error: "name or number missing",
+    });
+  } else {
+    const person = new Person({
+      name: body.name,
+      number: body.number,
+    });
+
+    person
+      .save()
+      .then((person) => {
+        response.json(person);
+      })
+      .catch((error) => {
+        if (error.name === "ValidationError") {
+          response.status(400).json({ error: error.message });
+        } else {
+          next(error);
+        }
+      });
+  }
+});
+
+app.delete("/api/persons/:id", async (request, response, next) => {
   const id = request.params.id;
 
   try {
-    const person = await Person.findById(id);
-
-    if (person) {
-      response.json(person);
-    } else {
-      response.status(404).end();
-    }
-  } catch (error) {
-    next(error);
-  }
-});
-
-app.post("/api/persons", async (request, response, next) => {
-  const { name, number } = request.body;
-
-  if (!name || !number) {
-    return response.status(400).json({
-      error: "Name or number is missing",
-    });
-  }
-
-  try {
-    const existingPerson = await Person.findOne({ name });
-
-    if (existingPerson) {
-      existingPerson.number = number;
-      await existingPerson.save();
-      response.json(existingPerson);
-    } else {
-      const addedPerson = await Person.addPerson(name, number);
-      response.json(addedPerson);
-    }
-  } catch (error) {
-    next(error);
-  }
-});
-
-
-app.delete("/api/persons/:id", (request, response) => {
-  const id = Number(request.params.id);
-  console.log(id);
-  try {
-    await Person.findByIdAndRemove(id)
+    await Person.findByIdAndDelete(id);
     response.status(204).end();
   } catch (error) {
+    console.error("Error deleting person from MongoDB:", error.message);
     response.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-app.use((error, request, response, next) => {
-  console.error(error.message)
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: "unknown endpoint" });
+};
+
+app.use(unknownEndpoint);
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
 
   if (error.name === "CastError") {
-    return response.status(400).send({ error: "Malformatted id" })
+    return response.status(400).send({ error: "malformatted id" });
+  } else if (error.name === "ValidationError") {
+    return response.status(400).json({ error: error.message });
   }
 
   next(error);
-});
+};
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
